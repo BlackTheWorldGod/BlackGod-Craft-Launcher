@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BlackGod Craft</title>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/skinview3d@2.2.0/build/skinview3d.bundle.js"></script>
+  
+  <style>
+    :root {
+      --bg: #18181b; --panel-bg: #232328; --panel-hover: #2d2d33;
+      --primary: #9c27b0; --primary-hover: #ab47bc; --primary-bg-trans: rgba(156, 39, 176, 0.15);
+      --danger: #ff5252; --success: #4caf50; --text-main: #ffffff; --text-sub: #a0a0a0; --border: rgba(255,255,255,0.08);
+    }
+    
+    ::-webkit-scrollbar { display: none; }
+    * { scrollbar-width: none; -ms-overflow-style: none; box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body { font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; position: relative; }
+
+    #dragOverlay { position: fixed; inset: 0; background: rgba(156, 39, 176, 0.4); backdrop-filter: blur(4px); z-index: 9999; display: none; justify-content: center; align-items: center; border: 4px dashed var(--primary); pointer-events: none; }
+    .drag-overlay-text { background: var(--panel-bg); color: white; padding: 24px 48px; border-radius: 16px; font-size: 24px; font-weight: bold; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid var(--border); text-align: center; }
+    .drag-overlay-text span { display: block; font-size: 14px; color: var(--text-sub); margin-top: 8px; font-weight: normal; }
+
+    #toast { position: fixed; top: 24px; left: 50%; transform: translateX(-50%) translateY(-20px); background: var(--success); color: white; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 14px; z-index: 10000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .sidebar-left { width: 220px; background: #1e1e22; display: flex; flex-direction: column; border-right: 1px solid var(--border); padding: 16px 12px; z-index: 10; }
+    .logo-area { display: flex; align-items: center; gap: 12px; padding: 8px 12px 24px; }
+    .logo-icon { width: 36px; height: 36px; background: #fff; border-radius: 8px; display: flex; justify-content: center; align-items: center; color: #000; font-weight: 900; font-size: 20px; }
+    .logo-text h3 { font-size: 16px; font-weight: 700; }
+    .logo-text p { font-size: 11px; color: var(--text-sub); }
+    .nav-menu { display: flex; flex-direction: column; gap: 4px; }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 8px; color: var(--text-sub); font-size: 14px; cursor: pointer; transition: all 0.2s; }
+    .nav-item:hover { background: var(--panel-hover); color: var(--text-main); }
+    .nav-item.active { background: var(--primary-bg-trans); color: var(--primary); font-weight: 600; }
+    .bottom-status { margin-top: auto; padding: 12px; background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3); border-radius: 8px; font-size: 12px; color: var(--success); display: flex; align-items: center; gap: 8px; }
+
+    .main-center { flex: 1; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; position: relative; z-index: 10; }
+    .top-bar { display: flex; justify-content: center; font-size: 12px; color: var(--text-sub); padding-bottom: 8px; }
+    .hero-card { position: relative; height: 320px; border-radius: 16px; overflow: hidden; background: url('https://images.unsplash.com/photo-1607513746994-51f730a44832?q=80&w=1000&auto=format&fit=crop') center/cover no-repeat; display: flex; align-items: flex-end; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .hero-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); }
+    .hero-content { position: relative; z-index: 1; display: flex; width: 100%; justify-content: space-between; align-items: flex-end; }
+    .hero-text h1 { font-size: 28px; margin-bottom: 8px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+    .custom-select { appearance: none; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 6px 12px; border-radius: 20px; font-size: 12px; outline: none; cursor: pointer; }
+    .launch-btn { background: var(--primary); color: white; border: none; border-radius: 12px; padding: 16px 40px; font-size: 20px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 12px; box-shadow: 0 4px 20px rgba(156, 39, 176, 0.4); transition: all 0.2s; z-index: 2; }
+    .launch-btn:hover:not(:disabled) { background: var(--primary-hover); transform: scale(1.02); }
+    .launch-btn:disabled { background: #555; cursor: not-allowed; box-shadow: none; }
+    .status-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .status-card { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .status-card-label { font-size: 12px; color: var(--text-sub); display: flex; align-items: center; gap: 6px; }
+    .status-card-value { font-size: 14px; font-weight: 600; }
+    .card-select { background: transparent; border: none; color: white; font-size: 14px; font-weight: 600; outline: none; cursor: pointer; width: 100%; }
+    .card-select option { background: #232328; }
+    
+    .progress-box { display: none; position: absolute; top: 24px; right: 24px; width: 200px; z-index: 2; }
+    .progress-bg { height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden; }
+    .progress-bar { height: 100%; background: var(--success); width: 0%; transition: width 0.2s; }
+    .progress-text { font-size: 11px; color: white; text-align: right; margin-top: 4px; text-shadow: 0 1px 2px black;}
+
+    .sidebar-right { width: 300px; background: #1e1e22; border-left: 1px solid var(--border); padding: 24px 20px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; z-index: 10; }
+    .user-card { background: var(--panel-bg); border-radius: 12px; padding: 16px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--border); cursor: pointer; transition: background 0.2s; }
+    .user-card:hover { background: var(--panel-hover); }
+    .user-avatar { width: 40px; height: 40px; background: var(--primary); border-radius: 8px; display: flex; justify-content: center; align-items: center; font-size: 20px; font-weight: bold; }
+    .user-info { flex: 1; }
+    .user-info h4 { font-size: 14px; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; }
+    .user-info p { font-size: 11px; color: var(--success); display: flex; align-items: center; gap: 4px; }
+    .user-info p::before { content: ''; width: 6px; height: 6px; background: var(--success); border-radius: 50%; display: block; }
+    .more-btn { color: var(--text-sub); font-size: 18px; font-weight: bold; }
+    
+    .skin-panel { background: var(--panel-bg); border-radius: 12px; border: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; }
+    .skin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .skin-header h3 { font-size: 14px; }
+    
+    .skin-box { flex: 1; background: rgba(0,0,0,0.2); border-radius: 8px; position: relative; overflow: hidden; min-height: 250px; display: flex; justify-content: center; align-items: center; border: 2px dashed transparent; transition: all 0.3s; }
+    .skin-box.drag-over { border-color: var(--primary); background: rgba(156, 39, 176, 0.1); }
+    .skin-box::after { content: '将皮肤图片 (PNG) 拖拽到此处'; position: absolute; bottom: 10px; left: 0; width: 100%; text-align: center; font-size: 11px; color: var(--text-sub); opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+    .skin-box:hover::after { opacity: 1; }
+    
+    .skin-tip { font-size: 11px; color: var(--text-sub); text-align: center; margin-top: 8px; }
+    .creator-card { background: var(--panel-bg); border-radius: 12px; border: 1px solid var(--border); padding: 16px; font-size: 12px; color: var(--text-sub); line-height: 1.5; }
+    .creator-card h4 { color: var(--text-main); font-size: 14px; margin-bottom: 8px; }
+    
+    .log-panel { position: absolute; bottom: 24px; right: 320px; width: 400px; height: 180px; background: rgba(0,0,0,0.8); border: 1px solid var(--border); border-radius: 12px; display: none; flex-direction: column; overflow: hidden; z-index: 100; backdrop-filter: blur(10px); }
+    .log-header { padding: 8px 12px; background: rgba(255,255,255,0.1); font-size: 12px; display: flex; justify-content: space-between; }
+    .log-box { flex: 1; padding: 12px; overflow-y: auto; font-family: monospace; font-size: 11px; color: #ccc; white-space: pre-wrap; }
+
+    #accountPage { position: absolute; inset: 0; background: var(--bg); z-index: 100; display: none; flex-direction: column; padding: 24px 40px; overflow-y: auto; animation: slideUp 0.3s ease-out; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .page-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; width: 100%; max-width: 900px; margin-left: auto; margin-right: auto; }
+    .back-btn { background: var(--panel-bg); border: none; color: var(--text-sub); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 18px; transition: all 0.2s; }
+    .back-btn:hover { background: var(--panel-hover); color: var(--text-main); }
+    .page-title-area h1 { font-size: 24px; margin-bottom: 8px; }
+    .page-title-area p { font-size: 13px; color: var(--text-sub); }
+
+    .content-card { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; width: 100%; max-width: 900px; margin-left: auto; margin-right: auto; }
+    .content-card h3 { font-size: 16px; margin-bottom: 16px; }
+
+    .tabs-container { display: flex; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 4px; margin-bottom: 20px; }
+    .tab-btn { flex: 1; padding: 12px; background: transparent; border: none; color: var(--text-sub); font-size: 14px; cursor: pointer; border-radius: 6px; transition: all 0.2s; font-weight: 600; }
+    .tab-btn.active { background: var(--primary); color: white; }
+    .tab-btn:hover:not(.active) { color: var(--text-main); }
+
+    .hint-text { font-size: 12px; color: var(--text-sub); line-height: 1.6; margin-bottom: 16px; }
+    .form-area { display: none; flex-direction: column; gap: 16px; }
+    .form-area.active { display: flex; }
+    .input-row { display: flex; gap: 12px; }
+    
+    .input-group { flex: 1; display: flex; flex-direction: column; gap: 6px; position: relative; }
+    .input-group label { font-size: 12px; color: var(--text-sub); }
+    .input-group input { background: rgba(0,0,0,0.2); border: 1px solid var(--border); padding: 12px; border-radius: 8px; color: white; outline: none; font-size: 14px; width: 100%; }
+    .input-group input:focus { border-color: var(--primary); }
+    .input-group input[type="password"], .input-group input.visible-password { padding-right: 40px; }
+    
+    .eye-icon { position: absolute; right: 12px; bottom: 11px; cursor: pointer; width: 18px; height: 18px; opacity: 0.6; transition: opacity 0.2s; filter: invert(1); }
+    .eye-icon:hover { opacity: 1; }
+
+    .error-box { display: none; background: rgba(255, 82, 82, 0.15); border: 1px solid rgba(255, 82, 82, 0.4); color: var(--danger); padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-top: 4px; animation: shake 0.4s ease-in-out; }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+    .btn-primary { background: var(--primary); color: white; border: none; border-radius: 8px; padding: 12px 24px; font-size: 14px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-primary:disabled { background: #555; cursor: not-allowed; }
+    .btn-primary.icon-ms { background: #2F71C8; } 
+
+    .account-list { display: flex; flex-direction: column; gap: 12px; }
+    .account-item { display: flex; align-items: center; gap: 16px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 16px; transition: background 0.2s; }
+    .account-item:hover { background: rgba(255,255,255,0.05); }
+    .acc-avatar { width: 48px; height: 48px; border-radius: 8px; background: #333; object-fit: cover; }
+    .acc-info { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+    .acc-name { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .acc-tag { font-size: 11px; background: var(--primary-bg-trans); color: var(--primary); padding: 2px 8px; border-radius: 4px; font-weight: normal; }
+    .acc-uuid { font-size: 12px; color: var(--text-sub); font-family: monospace; }
+    .acc-actions { display: flex; align-items: center; gap: 16px; }
+    .status-using { font-size: 12px; color: var(--text-sub); }
+    .btn-danger { background: transparent; border: 1px solid rgba(255,82,82,0.3); color: var(--danger); padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+    .btn-danger:hover { background: rgba(255,82,82,0.1); border-color: var(--danger); }
+  </style>
+</head>
+<body>
+  <div id="dragOverlay">
+    <div class="drag-overlay-text">⬇ 松开以导入<span>支持 LittleSkin 登录卡片、皮肤 PNG 图片</span></div>
+  </div>
+  <div id="toast">提示信息</div>
+
+  <div class="sidebar-left">
+    <div class="logo-area"><div class="logo-icon">B</div><div class="logo-text"><h3>BlackGod</h3><p>v1.0.0</p></div></div>
+    <div class="nav-menu">
+      <div class="nav-item active">🏠 首页</div><div class="nav-item">🎮 游戏版本</div><div class="nav-item">📁 资源管理</div>
+    </div>
+    <div class="bottom-status"><span style="width: 8px; height: 8px; background: #4caf50; border-radius: 50%;"></span> 运行正常</div>
+  </div>
+
+  <div class="main-center">
+    <div class="top-bar">BlackGod Craft 启动器</div>
+    <div class="hero-card">
+      <div class="hero-overlay"></div>
+      <div id="progressBox" class="progress-box"><div class="progress-bg"><div id="progressBar" class="progress-bar"></div></div><div id="statusText" class="progress-text">正在准备...</div></div>
+      <div class="hero-content">
+        <div class="hero-text">
+          <h1>Minecraft</h1>
+          <select id="versionSelect" class="custom-select" style="margin-top: 10px;">
+            <option value="1.20.4">版本: 1.20.4</option><option value="1.20.1-forge">版本: 1.20.1 Forge</option><option value="1.12.2">版本: 1.12.2</option>
+          </select>
+        </div>
+        <button id="launchBtn" class="launch-btn"><span>▶</span> 开始游戏</button>
+      </div>
+    </div>
+
+    <div class="status-cards">
+      <div class="status-card"><div class="status-card-label">💻 运行环境</div><div class="status-card-value">自动选择</div></div>
+      <div class="status-card"><div class="status-card-label">🧠 内存分配</div><select id="memorySelect" class="card-select"><option value="2G">分配: 2G</option><option value="4G" selected>分配: 4G</option><option value="8G">分配: 8G</option></select></div>
+      <div class="status-card"><div class="status-card-label">🛡️ 版本隔离</div><select id="isolationSelect" class="card-select"><option value="none">不隔离</option><option value="mods" selected>仅隔离模组版</option><option value="all">隔离所有版本</option></select></div>
+    </div>
+  </div>
+
+  <div class="sidebar-right">
+    <div class="user-card" id="openAccountPage">
+      <div class="user-avatar" id="displayAvatar">P</div>
+      <div class="user-info"><h4 id="displayName">Player</h4><p>已登录</p></div>
+      <div class="more-btn">⋯</div>
+    </div>
+    <div class="skin-panel">
+      <div class="skin-header"><h3>皮肤预览</h3></div>
+      <div class="skin-box" id="skinContainer"></div>
+      <div class="skin-tip">拖动旋转 · 滚动缩放 · 拖入图片更换</div>
+    </div>
+    <div class="creator-card"><h4>参与测试及创作者</h4><p>感谢使用 <span style="color:var(--primary);">BlackGod Craft</span>！</p></div>
+  </div>
+
+  <div id="logPanel" class="log-panel">
+    <div class="log-header"><span>运行日志</span><span id="closeLogBtn" style="cursor: pointer; color: #ff5252;">✖</span></div>
+    <div class="log-box" id="logBox">等待启动...</div>
+  </div>
+
+  <div id="accountPage">
+    <div class="page-header">
+      <button class="back-btn" id="backToHome">←</button>
+      <div class="page-title-area"><h1>账号</h1><p>管理微软正版、离线与 LittleSkin 账号</p></div>
+    </div>
+
+    <div class="content-card">
+      <h3>添加账号</h3>
+      <div class="tabs-container">
+        <button class="tab-btn active" data-target="ms">Microsoft 正版登录</button>
+        <button class="tab-btn" data-target="offline">离线登录</button>
+        <button class="tab-btn" data-target="littleskin">LittleSkin 登录</button>
+      </div>
+
+      <div id="tab-ms" class="form-area active">
+        <div class="hint-text">通过微软设备代码完成正版授权，启动器不会接触你的微软密码。</div>
+        <button class="btn-primary icon-ms" onclick="showToast('微软登录暂时在调试中', true)"><span>⊞</span> 开始微软登录</button>
+      </div>
+
+      <div id="tab-offline" class="form-area">
+        <div class="input-row"><div class="input-group"><label>玩家名称</label><input type="text" id="inputOfflineName" placeholder="输入玩家名，最多16个字符" value="Player"></div></div>
+        <button class="btn-primary" id="btnSaveOffline">添加离线账号</button>
+      </div>
+
+      <div id="tab-littleskin" class="form-area">
+        <div class="hint-text" style="color:var(--primary); background:var(--primary-bg-trans); padding:12px; border-radius:8px; margin-bottom: 16px;">
+          💡 提示：拖拽 LittleSkin 官网的卡片到启动器，会自动弹开纯净登录网页。
+        </div>
+        <div class="input-row">
+          <div class="input-group"><label>账号 (邮箱 或 用户名)</label><input type="text" id="inputLittleSkinEmail" placeholder="请输入 LittleSkin 注册邮箱或用户名"></div>
+          <div class="input-group"><label>密码</label><input type="password" id="inputLittleSkinPassword" placeholder="请输入密码"><img class="eye-icon" id="togglePwd" src="./eye-open.png" alt="show password" /></div>
+        </div>
+        <button class="btn-primary" id="btnSaveLittleSkin">验证并添加</button>
+        <div class="error-box" id="littleskinError">请查看您的 LittleSkin 账号或者密码输入错误，请重新尝试</div>
+      </div>
+    </div>
+
+    <div class="content-card">
+      <h3>我的账号 (<span id="accountCount">1</span>)</h3>
+      <div class="account-list" id="accountList"></div>
+    </div>
+  </div>
+
+  <script>
+    let toastTimer = null;
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg; toast.style.background = isError ? 'var(--danger)' : 'var(--success)';
+      toast.classList.add('show');
+      clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    let accounts = [{ id: "1", type: "offline", typeName: "离线账号", name: "Player", uuid: "00000000-0000-0000-0000-000000000000" }];
+    let activeAccountId = "1";
+
+    const accountPage = document.getElementById('accountPage');
+    document.getElementById('openAccountPage').addEventListener('click', () => accountPage.style.display = 'flex');
+    document.getElementById('backToHome').addEventListener('click', () => accountPage.style.display = 'none');
+
+    const togglePwd = document.getElementById('togglePwd');
+    const pwdInput = document.getElementById('inputLittleSkinPassword');
+    togglePwd.addEventListener('click', () => {
+      if (pwdInput.type === 'password') { pwdInput.type = 'text'; togglePwd.src = './eye-closed.png'; }
+      else { pwdInput.type = 'password'; togglePwd.src = './eye-open.png'; }
+    });
+
+    const tabs = document.querySelectorAll('.tab-btn');
+    const formAreas = document.querySelectorAll('.form-area');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        formAreas.forEach(f => f.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`tab-${tab.dataset.target}`).classList.add('active');
+        document.getElementById('littleskinError').style.display = 'none';
+      });
+    });
+
+    const accountListEl = document.getElementById('accountList');
+    const accountCountEl = document.getElementById('accountCount');
+    const displayName = document.getElementById('displayName');
+    const displayAvatar = document.getElementById('displayAvatar');
+
+    function renderAccounts() {
+      accountListEl.innerHTML = '';
+      accountCountEl.innerText = accounts.length;
+      
+      accounts.forEach(acc => {
+        const isActive = acc.id === activeAccountId;
+        let tagStyle = "background:var(--primary-bg-trans);color:var(--primary);"; 
+        if (acc.type === 'microsoft') tagStyle = "background:rgba(47,113,200,0.15);color:#2F71C8;";
+        if (acc.type === 'littleskin') tagStyle = "background:rgba(76,175,80,0.15);color:#4caf50;"; 
+        
+        let listAvatarUrl = acc.type === 'littleskin' ? `https://littleskin.cn/avatar/${acc.name}` : `https://mineskin.eu/head/${acc.name}/48`;
+
+        const item = document.createElement('div');
+        item.className = 'account-item';
+        item.innerHTML = `
+          <img class="acc-avatar" src="${listAvatarUrl}" onerror="this.src='https://mineskin.eu/skin/Steve'">
+          <div class="acc-info">
+            <div class="acc-name">${acc.name}<span class="acc-tag" style="${tagStyle}">${acc.typeName}</span></div>
+            <div class="acc-uuid">${acc.uuid.substring(0, 8)}</div>
+          </div>
+          <div class="acc-actions">
+            ${isActive ? '<span class="status-using">使用中</span>' : `<button class="btn-primary" style="padding:6px 12px;font-size:12px;background:transparent;border:1px solid var(--primary);color:var(--primary);" onclick="switchAccount('${acc.id}')">切换</button>`}
+            ${accounts.length > 1 ? `<button class="btn-danger" onclick="deleteAccount('${acc.id}')">删除</button>` : ''}
+          </div>
+        `;
+        accountListEl.appendChild(item);
+      });
+
+      const activeAcc = accounts.find(a => a.id === activeAccountId);
+      if (activeAcc) {
+        displayName.innerText = activeAcc.name;
+        displayAvatar.innerText = activeAcc.name.charAt(0).toUpperCase();
+        
+        let skinUrl = "";
+        if (activeAcc.type === 'offline' || activeAcc.type === 'microsoft') skinUrl = `https://mineskin.eu/skin/${activeAcc.name}`;
+        else if (activeAcc.type === 'littleskin') skinUrl = `https://littleskin.cn/skin/${activeAcc.name}.png`;
+        
+        if (activeAcc.tempSkinBase64) skinUrl = activeAcc.tempSkinBase64;
+        loadSkin(skinUrl);
+      }
+    }
+
+    window.switchAccount = (id) => { activeAccountId = id; renderAccounts(); };
+    window.deleteAccount = (id) => {
+      if (confirm("确定要删除这个账号吗？")) {
+        accounts = accounts.filter(a => a.id !== id);
+        if (activeAccountId === id && accounts.length > 0) activeAccountId = accounts[0].id;
+        renderAccounts();
+      }
+    };
+
+    document.getElementById('btnSaveOffline').addEventListener('click', () => {
+      const name = document.getElementById('inputOfflineName').value.trim();
+      if (!name) return alert('请输入玩家名称');
+      const newId = Date.now().toString();
+      accounts.push({ id: newId, type: "offline", typeName: "离线账号", name: name, uuid: "00000000-0000-0000-0000-000000000000" });
+      activeAccountId = newId; renderAccounts(); accountPage.style.display = 'none';
+    });
+
+    // 🌟 修复数据解析安全性的登录逻辑
+    document.getElementById('btnSaveLittleSkin').addEventListener('click', async () => {
+      const accountInput = document.getElementById('inputLittleSkinEmail').value.trim();
+      const pwd = document.getElementById('inputLittleSkinPassword').value.trim();
+      const errorBox = document.getElementById('littleskinError');
+      const btn = document.getElementById('btnSaveLittleSkin');
+
+      errorBox.style.display = 'none';
+      if (!accountInput || !pwd) { 
+        errorBox.innerText = "请输入邮箱与密码";
+        errorBox.style.display = 'block'; 
+        return; 
+      }
+
+      btn.innerText = '验证中...'; 
+      btn.disabled = true;
+
+      try {
+        // 调用主进程暴露的接口
+        const result = await window.launcherAPI.authLittleSkin({
+          username: accountInput,
+          password: pwd
+        });
+
+        if (!result.success) {
+          throw new Error(result.message);
+        }
+
+        const data = result.data;
+        
+        // 🌟 核心修复：智能判断是否有选中角色，如果没有则尝试获取角色列表的第一个
+        let profile = data.selectedProfile;
+        if (!profile && data.availableProfiles && data.availableProfiles.length > 0) {
+            profile = data.availableProfiles[0];
+        }
+
+        if (!profile) {
+            throw new Error("该账号尚未创建游戏角色，请先前往 LittleSkin 官网创建角色。");
+        }
+
+        const newId = Date.now().toString();
+        accounts.push({
+          id: newId, type: "littleskin", typeName: "LittleSkin",
+          name: profile.name, uuid: profile.id, accessToken: data.accessToken
+        });
+        
+        activeAccountId = newId; renderAccounts(); accountPage.style.display = 'none';
+        showToast("登录成功，欢迎回来！");
+
+      } catch (error) {
+        errorBox.innerText = `登录失败：${error.message}`;
+        errorBox.style.display = 'block';
+        document.getElementById('inputLittleSkinPassword').value = '';
+      } finally {
+        btn.innerText = '验证并添加'; 
+        btn.disabled = false;
+      }
+    });
+
+    const dragOverlay = document.getElementById('dragOverlay');
+    let dragCounter = 0;
+
+    window.addEventListener('dragenter', (e) => {
+      e.preventDefault(); dragCounter++;
+      if (dragCounter === 1) dragOverlay.style.display = 'flex';
+    });
+    window.addEventListener('dragover', (e) => { e.preventDefault(); });
+    window.addEventListener('dragleave', (e) => {
+      e.preventDefault(); dragCounter--;
+      if (dragCounter === 0) dragOverlay.style.display = 'none';
+    });
+
+    window.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      dragOverlay.style.display = 'none';
+      dragCounter = 0;
+
+      const textData = e.dataTransfer.getData('text/plain');
+      const files = e.dataTransfer.files;
+
+      if (textData) {
+        try {
+          const authData = JSON.parse(textData);
+          const token = authData.accessToken || authData.access_token;
+          const username = authData.username || authData.name || (authData.selectedProfile && authData.selectedProfile.name);
+          const uuid = authData.uuid || authData.id || (authData.selectedProfile && authData.selectedProfile.id) || "12345678-1234-1234-1234-1234567890ab";
+
+          if (token && username) {
+            let existing = accounts.find(a => a.name === username && a.type === 'littleskin');
+            let newId = existing ? existing.id : Date.now().toString();
+            if (!existing) accounts.push({ id: newId, type: "littleskin", typeName: "LittleSkin", name: username, uuid: uuid, accessToken: token });
+            activeAccountId = newId; renderAccounts(); accountPage.style.display = 'none';
+            showToast(`✨ 成功一键登录: ${username}`);
+            return;
+          }
+        } catch (err) {}
+
+        const serverUrl = textData.trim();
+        if (serverUrl.includes('yggdrasil') || serverUrl.includes('littleskin')) {
+          showToast("已识别 LittleSkin 地址，正在弹出纯净登录窗口...");
+          document.querySelector('.tab-btn[data-target="littleskin"]').click();
+          accountPage.style.display = 'flex';
+          window.open('https://littleskin.cn/auth/login', 'LittleSkinLogin', 'width=800,height=600');
+          setTimeout(() => {
+             document.getElementById('inputLittleSkinEmail').focus();
+             showToast("请在网页登录后，返回此处输入一次密码完成绑定", false);
+          }, 500);
+          return;
+        }
+      }
+
+      if (files && files.length > 0) {
+        const file = files[0];
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const base64Image = event.target.result;
+            if (viewer) viewer.loadSkin(base64Image); else loadSkin(base64Image);
+            const activeAcc = accounts.find(a => a.id === activeAccountId);
+            if (activeAcc) activeAcc.tempSkinBase64 = base64Image;
+            showToast("皮肤已成功替换！");
+          };
+          reader.readAsDataURL(file);
+        } else {
+          showToast("请拖入 PNG 皮肤或 LittleSkin 登录卡片", true);
+        }
+      }
+    });
+
+    let viewer = null;
+    function loadSkin(skinUrl) {
+      const container = document.getElementById('skinContainer');
+      container.innerHTML = ''; 
+      try {
+        viewer = new skinview3d.SkinViewer({ width: 220, height: 260, skin: skinUrl });
+        viewer.controls.enableRotate = true; viewer.controls.enableZoom = true;
+        viewer.animation = new skinview3d.WalkingAnimation(); viewer.animation.speed = 0.5; 
+        container.appendChild(viewer.canvas);
+      } catch (e) {}
+    }
+
+    renderAccounts();
+
+    const btn = document.getElementById('launchBtn');
+    const logBox = document.getElementById('logBox');
+    const logPanel = document.getElementById('logPanel');
+    document.getElementById('closeLogBtn').addEventListener('click', () => logPanel.style.display = 'none');
+
+    let logs = [];
+    window.launcherAPI.onProgress((p) => {
+      document.getElementById('progressBox').style.display = 'block';
+      document.getElementById('progressBar').style.width = p + '%';
+      document.getElementById('statusText').innerText = '下载/准备... ' + p + '%';
+      btn.disabled = true; btn.innerText = '启动中...';
+    });
+
+    window.launcherAPI.onLog((line) => {
+      logPanel.style.display = 'flex'; logs.push(line); logBox.innerText = logs.join('\n'); logBox.scrollTop = logBox.scrollHeight;
+    });
+    window.launcherAPI.onClosed(() => { btn.disabled = false; btn.innerHTML = '<span>▶</span> 开始游戏'; });
+    window.launcherAPI.onError((msg) => {
+      logPanel.style.display = 'flex'; logs.push('[ERROR] ' + msg); logBox.innerText = logs.join('\n');
+      btn.disabled = false; btn.innerHTML = '<span>▶</span> 重新启动';
+    });
+
+    btn.addEventListener('click', async () => {
+      const activeAcc = accounts.find(a => a.id === activeAccountId);
+      if (!activeAcc) return alert('请先添加一个账号');
+
+      let authData = { type: activeAcc.type };
+      if (activeAcc.type === 'offline') authData.username = activeAcc.name;
+      else if (activeAcc.type === 'littleskin') {
+        authData.email = document.getElementById('inputLittleSkinEmail').value || "test@test.com";
+        authData.password = document.getElementById('inputLittleSkinPassword').value || "123456";
+      }
+
+      btn.disabled = true; btn.innerText = '正在启动...';
+      logs = [`--- 准备启动 ${document.getElementById('versionSelect').value} ---`]; logBox.innerText = logs.join('\n');
+      
+      await window.launcherAPI.start({ version: document.getElementById('versionSelect').value, memory: document.getElementById('memorySelect').value, isolation: document.getElementById('isolationSelect').value, auth: authData });
+    });
+  </script>
+</body>
+</html>
